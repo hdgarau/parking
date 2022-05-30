@@ -1,26 +1,26 @@
 import cv2
 import cvzone
 from datetime import datetime
+from datetime import timedelta
+
+import defines
+from cars.classes.Renderer import Renderer
 
 class PlaceParking():
+    keepStatusOnFree = [defines.STATUS_SELECTED]
     pos = (0, 0)
     name = ''
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    fontScale = 0.5
-    posText = (0, -50)
-    colorText = (0, 0, 0)
-    thickness = 2
-    colorRectangleNotCar = (0,255,0)
-    colorRectangleCar = (0,0,255)
-    posSize = (0, 0)
-    status = [False, '']
+    status = [None, None]
     pixelsMin = 250
+    status_setted = None
+    has_operator = False
 
-    def __init__(self, name, pos, posSize, pixelsMin):
+    def __init__(self, name, pos, posSize, pixelsMin, hasOperator):
         self.name = name
         self.pos = pos
         self.posSize = posSize
         self.pixelsMin = pixelsMin
+        self.has_operator = hasOperator
 
     def betweenX(self, pos):
         return self.pos[0] <= pos[0] and self.pos[0] + self.posSize[0] >= pos[0]
@@ -32,10 +32,7 @@ class PlaceParking():
         return  self.betweenX(pos) and self.betweenY(pos)
 
     def render(self,image):
-        cv2.rectangle(image, self.pos + self.posSize, self.colorRectangleCar if self.status[0] else self.colorRectangleNotCar, self.thickness)
-        #imgok = cv2.imread("cars\\images\\bussy.jpg")
-        #image[0:44,0:44,0:3] = imgok
-        image = cv2.putText(image, self.name, self.pos  , self.font, self.fontScale, self.colorText, self.thickness, cv2.LINE_4)
+        image = Renderer().render(image,self.status,self.name,self.pos, self.posSize)
 
     def getPixels(self):
         return cv2.countNonZero(self.imageProcessed)
@@ -50,4 +47,19 @@ class PlaceParking():
         return self.getPixels() >= self.pixelsMin
 
     def setStatus(self,status = None):
-        self.status = [self.hasCar() if status == None else status, datetime.now()]
+        if status == None:
+            if self.status[1] != None and self.status[1] + timedelta(seconds=3)  > datetime.now() or self.status == defines.STATUS_SELECTED:
+                return
+            if self.status_setted:
+                status = self.status_setted
+            else:
+                if self.hasCar():
+                    if self.status[0] == defines.STATUS_BUSSY:
+                        return
+                    if not self.has_operator or self.status[0] == defines.STATUS_SELECTED:
+                        status = defines.STATUS_BUSSY
+                    else:
+                        status = defines.STATUS_BUSSY if not self.has_operator else defines.STATUS_BAD_PARKING
+                else:
+                    status = defines.STATUS_FREE if self.status[0] not in self.keepStatusOnFree else self.status[0]
+        self.status = [status, datetime.now()]
